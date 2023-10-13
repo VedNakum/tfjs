@@ -1,19 +1,13 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Object Detection with Teachable Machine</title>
-</head>
-<body>
-    <div class="da-document">
-        <div id="Predictdat">Instructions:</div>
-        <button type="button" onclick="init()">Fire em' up!</button>
-        <div id="webcam-container"></div>
-        <canvas id="canvas" width="200" height="200"></canvas>
-        <div class="label" id="label-container"></div>
-        <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-        <style>
-        .da-document {
+<charset !DOCTYPE html>
+<div class="da-document">
+<div id="Predictdat">Instructions:</div>
+<button type="button" onclick="init()">Fire em' up!</button>
+<div id="webcam-container"></div>
+<div class="label" id="label-container"></div>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+<style>
+    .da-document {
         font-family: sans-serif;
         margin: auto;
 
@@ -39,99 +33,75 @@
     }
 
     
-            /* Your CSS styles here */
-        </style>
-        <script type="text/javascript">
-            // The link to your model provided by Teachable Machine export panel
-            const URL = "https://teachablemachine.withgoogle.com/models/Toj7fK1c0/"
-            let model, webcam, labelContainer, maxPredictions;
-            let posted = false;
+</style>
+<script type="text/javascript">
+    // The link to your model provided by Teachable Machine export panel
+    const URL = "https://teachablemachine.withgoogle.com/models/Toj7fK1c0/"
+    let model, webcam, labelContainer, maxPredictions;
+    let posted = false;
 
-            // Function to draw boxes around detected objects
-            function drawBoundingBox(x, y, width, height) {
-                const canvas = document.getElementById("canvas");
-                const ctx = canvas.getContext("2d");
+    // Load the image model and setup the webcam
+    async function init() {
+        const modelURL = URL + "model.json";
+        const metadataURL = URL + "metadata.json";
 
-                ctx.strokeStyle = "red";
-                ctx.lineWidth = 2;
-                ctx.strokeRect(x, y, width, height);
+        // Load the model and metadata
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
+
+        // Convenience function to setup a webcam
+        const flip = true; // whether to flip the webcam
+        webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
+        await webcam.setup(); // request access to the webcam
+        await webcam.play();
+        window.requestAnimationFrame(loop);
+
+        // Append elements to the DOM
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+        labelContainer = document.getElementById("label-container");
+        for (let i = 0; i < maxPredictions; i++) {
+            labelContainer.appendChild(document.createElement("div"));
+        }
+    }
+
+    async function loop() {
+        webcam.update(); // update the webcam frame
+        await predict();
+        window.requestAnimationFrame(loop);
+    }
+
+    // Run the webcam image through the image model
+    async function predict() {
+        // Predict can take in an image, video, or canvas HTML element
+        const prediction = await model.predict(webcam.canvas);
+        let highestProbability = 0;
+        let highestClass = "";
+        
+        for (let i = 0; i < maxPredictions; i++) {
+            const classPrediction = prediction[i].probability;
+            
+            if (classPrediction > highestProbability) {
+                highestProbability = classPrediction;
+                highestClass = prediction[i].className;
             }
-
-            // Load the image model and setup the webcam
-            async function init() {
-                const modelURL = URL + "model.json";
-                const metadataURL = URL + "metadata.json";
-
-                // Load the model and metadata
-                model = await tmImage.load(modelURL, metadataURL);
-                maxPredictions = model.getTotalClasses();
-
-                // Convenience function to setup a webcam
-                const flip = true; // whether to flip the webcam
-                webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
-                await webcam.setup(); // request access to the webcam
-                await webcam.play();
-                window.requestAnimationFrame(loop);
-
-                // Append elements to the DOM
-                document.getElementById("webcam-container").appendChild(webcam.canvas);
-                labelContainer = document.getElementById("label-container");
-                for (let i = 0; i < maxPredictions; i++) {
-                    labelContainer.appendChild(document.createElement("div"));
-                }
+            labelContainer.childNodes[i].innerHTML = prediction[i].className + ": " + (classPrediction * 100).toFixed(2) + "%";
+        }
+        
+        if (highestProbability > 0.8 && !posted) {
+            posted = true;
+            let instruction = "";
+            
+            if (highestClass === "left") {
+                instruction = "Strafe Left";
+            } else if (highestClass === "right") {
+                instruction = "Strafe Right";
+            } else if (highestClass === "middle") {
+                instruction = "Move Forward";
             }
-
-            async function loop() {
-                webcam.update(); // update the webcam frame
-                await predict();
-                window.requestAnimationFrame(loop);
-            }
-
-            // Run the webcam image through the image model
-            async function predict() {
-                const prediction = await model.predict(webcam.canvas);
-                let highestProbability = 0;
-                let highestClass = "";
-
-                for (let i = 0; i < maxPredictions; i++) {
-                    const classPrediction = prediction[i].probability;
-
-                    if (classPrediction > highestProbability) {
-                        highestProbability = classPrediction;
-                        highestClass = prediction[i].className;
-                    }
-                    labelContainer.childNodes[i].innerHTML =
-                        prediction[i].className + ": " + (classPrediction * 100).toFixed(2) + "%;
-                }
-
-                if (highestProbability > 0.8 && !posted) {
-                    posted = true;
-                    let instruction = "";
-
-                    if (highestClass === "left") {
-                        instruction = "Strafe Left";
-                    } else if (highestClass === "right") {
-                        instruction = "Strafe Right";
-                    } else if (highestClass === "middle") {
-                        instruction = "Move Forward";
-                    }
-
-                    document.getElementById("Predictdat").innerHTML = "Instructions: " + instruction;
-
-                    // You can add code here to draw a bounding box around detected objects
-                    const boundingBoxX = 50; // Replace with the X-coordinate of the object
-                    const boundingBoxY = 50; // Replace with the Y-coordinate of the object
-                    const boundingBoxWidth = 100; // Replace with the width of the bounding box
-                    const boundingBoxHeight = 100; // Replace with the height of the bounding box
-
-                    drawBoundingBox(boundingBoxX, boundingBoxY, boundingBoxWidth, boundingBoxHeight);
-                }
-            }
-        </script>
-    </div>
-    <footer class="foot">
-        <p>made by ved</p>
-    </footer>
-</body>
-</html>
-
+            
+            document.getElementById("Predictdat").innerHTML = "Instructions: " + instruction;
+        }
+    }
+</script>
+</div>
+<footer class="foot" ><p>made by ved</p></footer>
